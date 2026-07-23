@@ -1,0 +1,1213 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyota Fund KE | Youth Empowerment Financing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #006600;
+            --primary-red: #bb0000;
+            --primary-black: #000000;
+            --bg-light: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        h1, h2, h3, h4, h5, h6, label, button,
+        .logo-text, .splash-title {
+            font-family: 'Baloo 2', sans-serif;
+            background-color: #f8f8f8;
+            background-image:
+                radial-gradient(var(--primary-green) 0.5px, transparent 0.5px),
+                linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+            background-size: 20px 20px, 100% 100%;
+            background-attachment: fixed;
+            color: var(--text-main);
+        }
+
+        .green-gradient-btn {
+            background: linear-gradient(to right, #000000 0%, #bb0000 50%, #006600 100%);
+        }
+
+        .logo-text {
+            color: #000000;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .toast-enter {
+            animation: slideUpIn 0.5s ease-out forwards;
+        }
+
+        @keyframes slideUpIn {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .loading-pulse {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .5;
+            }
+        }
+
+        .limit-card.selected {
+            border: 2px solid var(--primary-green);
+            background-color: #f0fdf4;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1);
+        }
+
+        .limit-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .limit-card:active {
+            transform: scale(0.97);
+        }
+
+        [id$="-modal"] > div {
+            animation: modalPopIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes modalPopIn {
+            from {
+                opacity: 0;
+                transform: scale(0.92) translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal-overlay {
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Success confirmation: soft radiating pulse behind a bouncy checkmark */
+        @keyframes successPing {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.8;
+            }
+            80%, 100% {
+                transform: scale(1.9);
+                opacity: 0;
+            }
+        }
+
+        .animate-success-ping {
+            animation: successPing 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes successPop {
+            0% {
+                transform: scale(0);
+            }
+            60% {
+                transform: scale(1.15);
+            }
+            80% {
+                transform: scale(0.95);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .animate-success-pop {
+            animation: successPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* The checkmark stroke "draws itself" in, right after the circle pops */
+        #success-checkmark-path {
+            stroke-dasharray: 20;
+            stroke-dashoffset: 20;
+            animation: drawCheck 0.35s ease-out 0.35s forwards;
+        }
+
+        @keyframes drawCheck {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* A gentle one-time "breathe" on the whole card once confirmed, drawing the eye */
+        @keyframes confirmedGlow {
+            0%, 100% {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            }
+            50% {
+                box-shadow: 0 10px 25px -3px rgba(34, 197, 94, 0.35);
+            }
+        }
+
+        .animate-confirmed-glow {
+            animation: confirmedGlow 1.6s ease-in-out 2;
+        }
+
+        .custom-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Splash Screen */
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            background: #ffffff;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+
+        #splash-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-100%);
+        }
+
+        .splash-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: logo-entrance 1.2s ease-out forwards;
+        }
+
+        .splash-star {
+            width: 80px;
+            height: 80px;
+            color: #FFD700;
+            /* Golden */
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.4));
+            margin-bottom: 1rem;
+        }
+
+        .splash-title {
+            font-size: 2.5rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .splash-target-green {
+            color: #006600;
+        }
+
+        .splash-target-red {
+            color: #bb0000;
+        }
+
+        .splash-target-black {
+            color: #000000;
+        }
+
+        @keyframes logo-entrance {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .loading-bar-container {
+            width: 220px;
+            height: 6px;
+            background: #f8fafc;
+            border-radius: 99px;
+            overflow: hidden;
+            border: 1px solid #f1f5f9;
+            margin-top: 1.5rem;
+        }
+
+        .loading-bar-progress {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(to right, #000000, #bb0000, #006600);
+            animation: progress-fill 3.5s cubic-bezier(0.1, 0, 0.3, 1) forwards;
+        }
+
+        @keyframes progress-fill {
+            0% {
+                width: 0%;
+            }
+
+            30% {
+                width: 40%;
+            }
+
+            60% {
+                width: 70%;
+            }
+
+            100% {
+                width: 100%;
+            }
+        }
+    </style>
+    
+</head>
+
+<body class="min-h-screen">
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div class="splash-content">
+            <svg class="splash-star" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                    d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.48 8.279-7.416-3.967-7.417 3.967 1.481-8.279-6.064-5.828 8.332-1.151z" />
+            </svg>
+            <h1 class="splash-title">
+                <span class="splash-target-black">NYOTA</span>
+                <span class="splash-target-red">FUND</span>
+            </h1>
+            <div class="flex gap-1">
+                <div class="w-8 h-1 bg-black"></div>
+                <div class="w-8 h-1 bg-[#bb0000]"></div>
+                <div class="w-8 h-1 bg-[#006600]"></div>
+            </div>
+        </div>
+        <div class="loading-bar-container">
+            <div class="loading-bar-progress"></div>
+        </div>
+        <p class="mt-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] animate-pulse">Kenya's Youth
+            Empowerment</p>
+    </div>
+    <div
+        class="max-w-md mx-auto min-h-screen relative flex flex-col bg-gradient-to-b from-white via-white to-green-50/30 shadow-xl">
+        <!-- Header -->
+        <header class="px-6 py-4 sticky top-0 z-10 bg-white shadow-sm flex items-center justify-center">
+            <h1 class="text-xl font-bold logo-text tracking-tight">NYOTA FUND KE</h1>
+        </header>
+
+
+
+        <!-- Random Activity Toast Container (Floating) -->
+        <div id="activity-toast"
+            class="fixed top-24 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[380px] z-50 px-6 py-4 bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl border border-gray-100 flex items-center gap-3 transition-all duration-500 opacity-0 -translate-y-4 pointer-events-none">
+            <div class="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                </svg>
+            </div>
+            <div class="flex flex-col">
+                <p class="text-[11px] font-medium text-gray-800" id="toast-message">0719****77 received Ksh 8,000
+                <p class="text-[10px] text-gray-400 mt-0.5">• just now</p>
+            </div>
+        </div>
+
+        <!-- Background Decorative Elements -->
+        <div class="absolute top-0 right-0 -tr-1/2 w-64 h-64 bg-green-500/5 rounded-full blur-3xl pointer-events-none">
+        </div>
+        <div class="absolute top-1/2 left-0 -tl-1/2 w-80 h-80 bg-green-500/5 rounded-full blur-3xl pointer-events-none">
+        </div>
+
+        <!-- Main Content -->
+        <main class="flex-grow px-6 py-6 pb-24 relative z-0">
+            
+<!-- Landing Page (Image 1 style) -->
+<div id="landing-page" class="flex flex-col items-center animate-in fade-in duration-500">
+    <!-- App Logo & Slogan -->
+    <div class="flex flex-col items-center mb-8">
+        <div class="w-16 h-16 bg-[#e8e2d4] rounded-2xl flex items-center justify-center shadow-inner mb-4">
+            <div class="flex flex-col items-center">
+                <div class="flex">
+                    <div class="w-4 h-4 bg-green-700 rotate-45 transform -mr-1"></div>
+                    <div class="w-4 h-4 bg-red-600 rotate-45 transform -ml-1"></div>
+                </div>
+                <div class="text-[8px] font-black text-black mt-1 leading-tight text-center">NYOTA<br>FUND</div>
+            </div>
+        </div>
+        <p class="text-sm font-medium text-gray-500 italic">Empowering Youth Through Your Support!</p>
+    </div>
+
+    <!-- Main Promo Card -->
+    <div class="w-full bg-white rounded-[32px] shadow-lg border border-gray-50 overflow-hidden mb-8">
+        <!-- Flag Stripe -->
+        <div class="flex h-1.5 w-full">
+            <div class="flex-1 bg-black"></div>
+            <div class="flex-1 bg-red-600"></div>
+            <div class="flex-1 bg-green-700"></div>
+        </div>
+
+        <div class="p-8 text-center">
+            <h2 class="text-3xl font-black text-green-800 mb-2">Support Kenyan Youth</h2>
+            <p class="text-[13px] text-gray-400 font-medium px-4">Your contribution drives empowerment across the nation</p>
+
+            <div class="grid grid-cols-2 gap-3 mt-8">
+                <div class="bg-green-50/50 p-4 rounded-2xl border border-green-50 flex flex-col items-center gap-2">
+                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-[11px] font-bold text-gray-700">Instant Impact</span>
+                </div>
+                <div class="bg-green-50/50 p-4 rounded-2xl border border-green-50 flex flex-col items-center gap-2">
+                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="text-[11px] font-bold text-gray-700">Paperless</span>
+                </div>
+                <div class="bg-green-50/50 p-4 rounded-2xl border border-green-50 flex flex-col items-center gap-2">
+                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                        </path>
+                    </svg>
+                    <span class="text-[11px] font-bold text-gray-700">Secure</span>
+                </div>
+                <div class="bg-green-50/50 p-4 rounded-2xl border border-green-50 flex flex-col items-center gap-2">
+                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z">
+                        </path>
+                    </svg>
+                    <span class="text-[11px] font-bold text-gray-700">Youth-focused</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Donate Now Button -->
+    <button onclick="showLoanSelection()"
+        class="w-full green-gradient-btn text-white py-5 rounded-2xl font-black text-xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+        Apply Now
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+        </svg>
+    </button>
+
+    <!-- Trust Section -->
+    <div class="w-full mt-10 p-8 bg-white border border-gray-50 rounded-[32px] shadow-lg relative overflow-hidden">
+        <div class="flex h-1.5 w-full absolute top-0 left-0">
+            <div class="flex-1 bg-black"></div>
+            <div class="flex-1 bg-red-600"></div>
+            <div class="flex-1 bg-green-700"></div>
+        </div>
+
+        <p class="text-center font-bold text-gray-500 mb-6 mt-2">Your security is our priority</p>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div class="flex items-center gap-2 bg-gray-50/80 px-4 py-2 rounded-full border border-gray-100">
+                <svg class="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                        clip-rule="evenodd"></path>
+                </svg>
+                <span class="text-[10px] font-black text-gray-700 uppercase">SSL Secured</span>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50/80 px-4 py-2 rounded-full border border-gray-100">
+                <svg class="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clip-rule="evenodd"></path>
+                </svg>
+                <span class="text-[10px] font-black text-gray-700 uppercase">Licensed</span>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50/80 px-4 py-2 rounded-full border border-gray-100">
+                <svg class="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 4.908-3.067 9.126-7.403 10.796a.75.75 0 01-.594 0C5.666 16.126 2.6 11.908 2.6 7c0-.68.056-1.35.166-2.001zm11.53 3.22a.75.75 0 00-1.06-1.06L9 10.879 7.364 9.243a.75.75 0 00-1.06 1.06l2.167 2.167a.75.75 0 001.06 0l4.167-4.167z"
+                        clip-rule="evenodd"></path>
+                </svg>
+                <span class="text-[10px] font-black text-gray-700 uppercase">Protected</span>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50/80 px-4 py-2 rounded-full border border-gray-100">
+                <svg class="w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                        d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z">
+                    </path>
+                </svg>
+                <span class="text-[10px] font-black text-gray-700 uppercase">Trusted</span>
+            </div>
+        </div>
+
+        <p class="text-center text-[10px] font-bold text-gray-400 mt-8 uppercase tracking-[0.2em]">Empowering thousands
+            of Kenyan youth</p>
+    </div>
+</div>
+
+<!-- Loan Selection Overlay (slider + popular limits, matching reference) -->
+<div id="selection-modal" class="fixed inset-0 z-[60] hidden bg-white overflow-y-auto">
+    <div class="min-h-screen w-full flex flex-col animate-in slide-in-from-bottom duration-300">
+        <!-- Header -->
+        <header class="px-6 py-4 sticky top-0 z-10 bg-white shadow-sm flex items-center justify-center border-b">
+            <h1 class="text-xl font-bold logo-text tracking-tight">NYOTA FUND KE</h1>
+        </header>
+
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <button onclick="requestClose()"
+                    class="w-9 h-9 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <h2 class="text-xl font-black text-gray-900">Custom Applications</h2>
+            </div>
+
+            <!-- Slider Summary Card -->
+            <div class="w-full bg-white border border-gray-50 rounded-[28px] shadow-lg relative overflow-hidden">
+                <div class="flex h-1.5 w-full">
+                    <div class="flex-1 bg-black"></div>
+                    <div class="flex-1 bg-red-600"></div>
+                    <div class="flex-1 bg-green-700"></div>
+                </div>
+                <div class="p-6 pt-8">
+                    <p class="text-center text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">Adjust your contribution</p>
+                    <p class="text-center text-4xl font-black text-green-700 mt-2 mb-6" id="slider-amount-display">Ksh 5,000</p>
+
+                    <input type="range" id="amount-slider" min="0" max="8" step="1" value="0"
+                        oninput="onSliderChange(this.value)"
+                        class="w-full h-2 rounded-full appearance-none bg-gray-100 accent-green-700 cursor-pointer">
+
+                    <div class="flex justify-between text-[11px] font-bold text-gray-400 mt-2">
+                        <span>Ksh 5k</span>
+                        <span>Ksh 75k</span>
+                    </div>
+
+                    <div class="border-t border-gray-100 mt-5 pt-5 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-500">Support Tier</span>
+                            <span class="text-sm font-black text-gray-900" id="slider-tier-label">Immediate Impact</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-500">Program Reach</span>
+                            <span class="text-sm font-black text-gray-900">Nationwide</span>
+                        </div>
+                        <div class="border-t border-dashed border-gray-200 pt-3 flex justify-between items-center">
+                            <span class="text-base font-black text-gray-900">Total Applied</span>
+                            <span class="text-lg font-black text-green-700" id="slider-total-display">Ksh 5,000</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Popular Limits quick-select -->
+            <p class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] mt-8 mb-3">Popular Limits</p>
+            <div class="grid grid-cols-3 gap-3" id="popular-limits-grid">
+                
+                <div onclick="selectLimit(0, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">5,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 100</div>
+                </div>
+                <div onclick="selectLimit(1, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">10,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 200</div>
+                </div>
+                <div onclick="selectLimit(2, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">15,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 500</div>
+                </div>
+                <div onclick="selectLimit(3, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">25,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 1,000</div>
+                </div>
+                <div onclick="selectLimit(4, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">35,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 1,500</div>
+                </div>
+                <div onclick="selectLimit(5, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">45,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 2,500</div>
+                </div>
+                <div onclick="selectLimit(6, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">55,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 3,500</div>
+                </div>
+                <div onclick="selectLimit(7, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">65,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 4,500</div>
+                </div>
+                <div onclick="selectLimit(8, this)"
+                    class="limit-card bg-gray-50 border-2 border-transparent p-4 rounded-2xl transition-all duration-300 cursor-pointer text-center">
+                    <div class="text-[15px] font-black text-gray-900">75,000</div>
+                    <div class="text-[10px] font-bold text-gray-400">FEE: 5,500</div>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <button id="get-loan-btn" onclick="showPersonalInfoModal()"
+                    class="w-full green-gradient-btn text-white py-5 rounded-3xl font-black text-xl shadow-xl transition-all flex items-center justify-center gap-3">
+                    Continue to Apply
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Applicant Information (combined form, matching reference) -->
+<div id="personal-info-modal"
+    class="fixed inset-0 z-[65] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+        class="bg-white w-full max-w-[340px] rounded-[24px] p-6 animate-in zoom-in duration-300 max-h-[85vh] overflow-y-auto">
+        <p class="text-gray-500 text-center mb-8 font-medium">Complete your applicant profile to proceed.</p>
+
+        <div class="space-y-6">
+            <div class="space-y-1">
+                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-wide ml-1">Full Legal Name</label>
+                <input type="text" id="full-name" placeholder="As per National ID"
+                    class="w-full bg-gray-50 border-2 border-gray-100 focus:border-green-500 focus:bg-white rounded-xl px-4 py-3 text-base font-bold text-gray-800 outline-none transition-all">
+            </div>
+
+            <div class="space-y-1">
+                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-wide ml-1">M-Pesa Number</label>
+                <div class="flex gap-2">
+                    <div class="bg-gray-100 rounded-xl px-3 py-3 text-gray-800 font-bold">+254</div>
+                    <input type="tel" id="phone-number" placeholder="07xx xxx xxx" inputmode="numeric" maxlength="10"
+                        oninput="this.value = this.value.replace(/\D/g, '').slice(0, 10)"
+                        class="flex-1 min-w-0 bg-gray-50 border-2 border-gray-100 focus:border-green-500 focus:bg-white rounded-xl px-4 py-3 text-base font-bold text-gray-800 outline-none transition-all">
+                </div>
+            </div>
+
+            <div class="space-y-1">
+                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-wide ml-1">County of Residence</label>
+                <select id="county"
+                    class="w-full bg-gray-50 border-2 border-gray-100 focus:border-green-500 focus:bg-white rounded-xl px-4 py-3 text-base font-bold text-gray-800 outline-none transition-all appearance-none">
+                    <option value="" disabled selected>Select County</option>
+                    <option value="Mombasa">Mombasa</option>
+                    <option value="Kwale">Kwale</option>
+                    <option value="Kilifi">Kilifi</option>
+                    <option value="Tana River">Tana River</option>
+                    <option value="Lamu">Lamu</option>
+                    <option value="Taita Taveta">Taita Taveta</option>
+                    <option value="Garissa">Garissa</option>
+                    <option value="Wajir">Wajir</option>
+                    <option value="Mandera">Mandera</option>
+                    <option value="Marsabit">Marsabit</option>
+                    <option value="Isiolo">Isiolo</option>
+                    <option value="Meru">Meru</option>
+                    <option value="Tharaka-Nithi">Tharaka-Nithi</option>
+                    <option value="Embu">Embu</option>
+                    <option value="Kitui">Kitui</option>
+                    <option value="Machakos">Machakos</option>
+                    <option value="Makueni">Makueni</option>
+                    <option value="Nyandarua">Nyandarua</option>
+                    <option value="Nyeri">Nyeri</option>
+                    <option value="Kirinyaga">Kirinyaga</option>
+                    <option value="Murang'a">Murang'a</option>
+                    <option value="Kiambu">Kiambu</option>
+                    <option value="Turkana">Turkana</option>
+                    <option value="West Pokot">West Pokot</option>
+                    <option value="Samburu">Samburu</option>
+                    <option value="Trans Nzoia">Trans Nzoia</option>
+                    <option value="Uasin Gishu">Uasin Gishu</option>
+                    <option value="Elgeyo-Marakwet">Elgeyo-Marakwet</option>
+                    <option value="Nandi">Nandi</option>
+                    <option value="Baringo">Baringo</option>
+                    <option value="Laikipia">Laikipia</option>
+                    <option value="Nakuru">Nakuru</option>
+                    <option value="Narok">Narok</option>
+                    <option value="Kajiado">Kajiado</option>
+                    <option value="Kericho">Kericho</option>
+                    <option value="Bomet">Bomet</option>
+                    <option value="Kakamega">Kakamega</option>
+                    <option value="Vihiga">Vihiga</option>
+                    <option value="Bungoma">Bungoma</option>
+                    <option value="Busia">Busia</option>
+                    <option value="Siaya">Siaya</option>
+                    <option value="Kisumu">Kisumu</option>
+                    <option value="Homa Bay">Homa Bay</option>
+                    <option value="Migori">Migori</option>
+                    <option value="Kisii">Kisii</option>
+                    <option value="Nyamira">Nyamira</option>
+                    <option value="Nairobi">Nairobi</option>
+                </select>
+            </div>
+
+            <div class="space-y-1">
+                <label class="block text-[11px] font-black text-gray-400 uppercase tracking-wide ml-1">Reason for Loan</label>
+                <select id="reason"
+                    class="w-full bg-gray-50 border-2 border-gray-100 focus:border-green-500 focus:bg-white rounded-xl px-4 py-3 text-base font-bold text-gray-800 outline-none transition-all appearance-none">
+                    <option value="" disabled selected>Select Reason</option>
+                    <option value="Business Expansion">Business Expansion</option>
+                    <option value="Rent/Housing">Rent/Housing</option>
+                    <option value="School Fees">School Fees</option>
+                    <option value="Medical Emergency">Medical Emergency</option>
+                    <option value="Personal/Family Use">Personal/Family Use</option>
+                    <option value="Agriculture/Farming">Agriculture/Farming</option>
+                    <option value="Stocking Goods">Stocking Goods</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <button onclick="validatePersonalInfo()"
+                class="w-full green-gradient-btn text-white py-5 rounded-2xl font-black text-lg shadow-xl">
+                Confirm &amp; Apply
+            </button>
+            <button onclick="requestClose()" class="w-full py-2 text-gray-400 font-bold text-sm">
+                Go Back
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirm Payment (Image 3 style) -->
+<div id="confirm-modal"
+    class="fixed inset-0 z-[80] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+        class="bg-white w-full max-w-[340px] rounded-[24px] overflow-hidden animate-in zoom-in duration-300 max-h-[85vh] overflow-y-auto">
+        <div class="p-8 text-center">
+            <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+
+            <h3 class="text-2xl font-black text-green-800 mb-6">Confirm Application</h3>
+ 
+             <div class="text-left space-y-2 mb-8 text-gray-600 font-medium">
+                 <p>Review your contribution:</p>
+                 <p><span class="font-bold">Applied Amount:</span> <span id="summary-limit">Ksh 5,500</span></p>
+                 <p class="text-green-700 font-bold leading-tight">You will receive an M-Pesa prompt to pay
+                     <span id="summary-fee-text">Ksh 100</span></p>
+                 <p class="text-xs text-gray-400 mt-2">Phone: <span id="summary-phone">07XXXXXXXX</span></p>
+             </div>
+
+            <div class="flex flex-col gap-3">
+                <button onclick="initiatePayment()"
+                    class="w-full bg-green-800 text-white py-4 rounded-xl font-bold text-lg active:scale-95 transition-all">
+                    Proceed to Payment
+                </button>
+                <button onclick="requestClose()"
+                    class="w-full bg-gray-800 text-white py-4 rounded-xl font-bold text-lg active:scale-95 transition-all">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Application Status Screen (matching reference receipt layout) -->
+<div id="payment-modal" class="fixed inset-0 z-[90] hidden bg-white overflow-y-auto">
+    <header class="px-6 py-4 sticky top-0 z-10 bg-white shadow-sm flex items-center justify-center">
+        <h1 class="text-xl font-bold logo-text tracking-tight">NYOTA FUND KE</h1>
+    </header>
+
+    <div class="px-6 py-10 flex flex-col items-center text-center animate-in fade-in duration-500">
+        <div class="relative w-20 h-20 mb-6">
+            <!-- Pending state: spinner + lightning -->
+            <div id="status-icon-pending">
+                <div class="absolute inset-0 border-8 border-gray-100 rounded-full"></div>
+                <div class="absolute inset-0 border-8 border-green-700 rounded-full border-t-transparent animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <svg class="w-7 h-7 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+            </div>
+            <!-- Success state: checkmark with radiating pulse, hidden until confirmed -->
+            <div id="status-icon-success" class="hidden">
+                <div class="absolute inset-0 rounded-full bg-green-400/40 animate-success-ping"></div>
+                <div class="absolute inset-0 rounded-full bg-green-500/30 animate-success-ping" style="animation-delay: 0.3s;"></div>
+                <div class="absolute inset-0 rounded-full bg-green-600 flex items-center justify-center animate-success-pop">
+                    <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
+                        <path id="success-checkmark-path" stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="text-2xl font-black text-gray-900 mb-2" id="status-heading">Application Status</h3>
+        <p class="text-gray-500 font-medium mb-6 px-4" id="status-subtext">Thank you for your generous contribution to youth empowerment.</p>
+
+        <h4 class="text-xl font-black text-gray-900 mb-2" id="status-subheading">Processing Payment</h4>
+        <p class="text-gray-500 font-medium mb-8 px-4" id="status-sub-subtext">We are waiting for your M-Pesa confirmation. Enter your PIN on the prompt sent to your phone.</p>
+
+        <div id="receipt-card" class="w-full max-w-sm bg-white border border-gray-100 rounded-[24px] shadow-lg p-6 text-left space-y-4">
+            <div class="flex justify-between items-center">
+                <span class="text-[11px] font-black text-gray-400 uppercase">Applied Amount</span>
+                <span class="text-lg font-black text-green-700" id="payment-fee-text">Ksh 100</span>
+            </div>
+            <div class="border-t border-gray-100"></div>
+            <div class="flex justify-between items-center">
+                <span class="text-[11px] font-black text-gray-400 uppercase">Reference</span>
+                <span class="text-sm font-black text-gray-900" id="payment-reference">--</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-[11px] font-black text-gray-400 uppercase">Recipient</span>
+                <span class="text-sm font-black text-green-700">NYOTA FUND KE</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-[11px] font-black text-gray-400 uppercase">Amount Paid</span>
+                <span class="text-sm font-black text-gray-900" id="payment-amount-paid">Ksh 100</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-[11px] font-black text-gray-400 uppercase">Loan Limit</span>
+                <span class="text-sm font-black text-gray-900" id="payment-loan-limit">Ksh 5,000</span>
+            </div>
+            <div class="border-t border-gray-100"></div>
+            <div class="flex justify-between items-center">
+                <span class="text-[11px] font-black text-gray-400 uppercase">Current State</span>
+                <span class="text-xs font-black px-3 py-1 rounded-full bg-blue-50 text-blue-700 uppercase" id="payment-state-badge">Pending</span>
+            </div>
+        </div>
+
+        <p class="text-xs text-gray-400 font-medium mt-8 px-6 uppercase tracking-wide">If you did not receive the prompt, please wait 30 seconds before trying again.</p>
+
+        
+    </div>
+</div>
+
+<!-- Success Screen -->
+<div id="success-screen" class="fixed inset-0 z-[100] hidden bg-white overflow-y-auto">
+    <div
+        class="min-h-screen w-full flex flex-col items-center justify-center p-8 text-center animate-in zoom-in duration-500">
+        <div
+            class="w-32 h-32 bg-green-50 rounded-[45px] flex items-center justify-center mb-10 border-4 border-green-100">
+            <svg class="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+        <h3 class="text-4xl font-black text-gray-900 mb-6">Success!</h3>
+        <p class="text-gray-500 text-lg font-bold mb-12 px-6">Your loan application has been received. We are processing
+            it and you will receive a confirmation message shortly.</p>
+        <button onclick="window.location.reload()"
+            class="w-full max-w-sm py-6 bg-gray-900 text-white rounded-[32px] font-black text-xl shadow-2xl">
+            Return to Home
+        </button>
+    </div>
+</div>
+
+
+        </main>
+    </div>
+
+    <!-- Global Loading Overlay -->
+    <div id="global-loader"
+        class="fixed inset-0 z-[100] hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-md">
+        <div class="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center">
+            <div class="w-16 h-16 border-4 border-green-100 border-t-green-600 rounded-full animate-spin"></div>
+            <p class="mt-4 font-bold text-gray-800">Please wait...</p>
+        </div>
+    </div>
+
+
+    
+<script>
+    const tiers = [
+        { amount: 5000, fee: 100 },
+        { amount: 10000, fee: 200 },
+        { amount: 15000, fee: 500 },
+        { amount: 25000, fee: 1000 },
+        { amount: 35000, fee: 1500 },
+        { amount: 45000, fee: 2500 },
+        { amount: 55000, fee: 3500 },
+        { amount: 65000, fee: 4500 },
+        { amount: 75000, fee: 5500 }
+    ];
+    const tierLabels = ['Immediate Impact', 'Immediate Impact', 'Steady Support', 'Steady Support', 'Sustained Growth', 'Sustained Growth', 'Impact Leader', 'Impact Leader', 'Impact Leader'];
+
+    let selectedIndex = 0;
+    let selectedAmount = tiers[0].amount;
+    let selectedCharge = tiers[0].fee;
+
+    function formatKsh(n) {
+        return 'Ksh ' + n.toLocaleString('en-KE');
+    }
+
+    function updateSliderUI(index) {
+        selectedIndex = index;
+        selectedAmount = tiers[index].amount;
+        selectedCharge = tiers[index].fee;
+
+        document.getElementById('slider-amount-display').textContent = formatKsh(selectedAmount);
+        document.getElementById('slider-total-display').textContent = formatKsh(selectedAmount);
+        document.getElementById('slider-tier-label').textContent = tierLabels[index];
+        document.getElementById('amount-slider').value = index;
+
+        document.querySelectorAll('#popular-limits-grid .limit-card').forEach((card, i) => {
+            if (i === index) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
+
+    function onSliderChange(value) {
+        updateSliderUI(parseInt(value, 10));
+    }
+
+    function selectLimit(index) {
+        updateSliderUI(index);
+    }
+
+    // ---- Screen stack wired to browser history ----
+    // Every screen we open pushes a history entry. A back gesture/button
+    // fires 'popstate', which we use to close the current screen instead
+    // of letting the browser navigate away from the page entirely.
+    let screenStack = [];
+
+    function openScreen(id) {
+        document.getElementById(id).classList.remove('hidden');
+        screenStack.push(id);
+        history.pushState({ nyotaDepth: screenStack.length }, '');
+    }
+
+    // Swap the currently-open screen for another without growing the
+    // history stack — used for multi-step flows (form -> confirm -> pay)
+    // so one back-press returns to the step before the one being replaced.
+    function replaceScreen(oldId, newId) {
+        document.getElementById(oldId).classList.add('hidden');
+        document.getElementById(newId).classList.remove('hidden');
+        if (screenStack.length && screenStack[screenStack.length - 1] === oldId) {
+            screenStack[screenStack.length - 1] = newId;
+            history.replaceState({ nyotaDepth: screenStack.length }, '');
+        } else {
+            openScreen(newId);
+        }
+    }
+
+    // Called by "Go Back" / "Cancel" / X buttons — triggers the same
+    // popstate handling a real back gesture would.
+    function requestClose() {
+        if (screenStack.length > 0) {
+            history.back();
+        }
+    }
+
+    window.addEventListener('popstate', () => {
+        if (screenStack.length > 0) {
+            const id = screenStack.pop();
+            document.getElementById(id).classList.add('hidden');
+        }
+    });
+
+    function showLoanSelection() {
+        openScreen('selection-modal');
+        document.body.style.overflow = 'hidden';
+        updateSliderUI(selectedIndex);
+    }
+
+    function showPersonalInfoModal() {
+        openScreen('personal-info-modal');
+    }
+
+    function generateReference() {
+        return Math.random().toString(16).slice(2, 10).toUpperCase();
+    }
+
+    function validatePersonalInfo() {
+        const name = document.getElementById('full-name').value;
+        const county = document.getElementById('county').value;
+        const reason = document.getElementById('reason').value;
+        let phone = document.getElementById('phone-number').value;
+        let cleanedPhone = phone.toString().trim();
+        if (cleanedPhone.startsWith('0')) cleanedPhone = cleanedPhone.substring(1);
+        if (cleanedPhone.startsWith('254')) cleanedPhone = cleanedPhone.substring(3);
+
+        if (!name || !county || !reason) {
+            alert('Please fill in all fields');
+            return;
+        }
+        // Must be exactly 9 digits, starting with 7 or 1 (Safaricom/Airtel/
+        // Telkom mobile ranges) — rejects letters, symbols, and wrong lengths
+        // that a plain .length check would have let through.
+        if (!/^[71]\d{8}$/.test(cleanedPhone)) {
+            alert('Please enter a valid M-Pesa phone number (e.g. 712345678)');
+            return;
+        }
+
+        document.getElementById('summary-limit').textContent = formatKsh(selectedAmount);
+        document.getElementById('summary-fee-text').textContent = formatKsh(selectedCharge);
+        document.getElementById('summary-phone').textContent = `0${cleanedPhone}`;
+
+        replaceScreen('personal-info-modal', 'confirm-modal');
+    }
+
+    async function initiatePayment() {
+        let phone = document.getElementById('phone-number').value;
+        let cleanPhone = phone.toString().trim();
+        if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
+        else if (!cleanPhone.startsWith('254')) cleanPhone = '254' + cleanPhone;
+
+        replaceScreen('confirm-modal', 'payment-modal');
+
+        const ref = generateReference();
+        currentPaymentReference = ref;
+        document.getElementById('payment-fee-text').textContent = formatKsh(selectedCharge);
+        document.getElementById('payment-amount-paid').textContent = formatKsh(selectedCharge);
+        document.getElementById('payment-loan-limit').textContent = formatKsh(selectedAmount);
+        document.getElementById('payment-reference').textContent = ref;
+        setStatusBadge('Pending', 'blue');
+
+        // Reset to the pending spinner state in case this is a retry after
+        // a previous failure/cancellation.
+        document.getElementById('status-icon-success').classList.add('hidden');
+        document.getElementById('status-icon-pending').classList.remove('hidden');
+        document.getElementById('status-subheading').textContent = 'Processing Payment';
+        document.getElementById('status-sub-subtext').textContent =
+            'We are waiting for your M-Pesa confirmation. Enter your PIN on the prompt sent to your phone.';
+        document.getElementById('receipt-card').classList.remove('animate-confirmed-glow');
+
+        try {
+            // This calls YOUR OWN backend — never call CitaPay directly from
+            // the browser, since that would expose your API credentials. See
+            // /api/initiate-payment.js for the server-side CitaPay integration.
+            const response = await fetch('/api/initiate-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone_number: cleanPhone,
+                    amount: selectedCharge,   // the fee is what's actually charged via M-Pesa
+                    loan_limit: selectedAmount,
+                    reference: ref,
+                    applicant: {
+                        full_name: document.getElementById('full-name').value,
+                        county: document.getElementById('county').value,
+                        reason: document.getElementById('reason').value
+                    }
+                })
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                setStatusBadge('Failed', 'red');
+                alert('Error: ' + (result.message || 'Could not reach the payment provider'));
+                return;
+            }
+
+            // The STK prompt was sent — that's NOT the same as being paid.
+            // Poll our own backend, which only reports SUCCESS once
+            // CitaPay's webhook has actually confirmed the transaction.
+            pollPaymentStatus(ref);
+
+        } catch (error) {
+            setStatusBadge('Failed', 'red');
+            alert('Service Timeout: Please try again');
+        }
+    }
+
+    function setStatusBadge(text, color) {
+        const colors = {
+            blue: 'bg-blue-50 text-blue-700',
+            green: 'bg-green-50 text-green-700',
+            red: 'bg-red-50 text-red-700'
+        };
+        const badge = document.getElementById('payment-state-badge');
+        badge.textContent = text;
+        badge.className = `text-xs font-black px-3 py-1 rounded-full uppercase ${colors[color]}`;
+    }
+
+    // The "received" moment: swap the spinner for a checkmark with a
+    // radiating pulse, update the copy to reflect that payment is in and
+    // the application is now moving forward, then update the badge.
+    function showPaymentConfirmed() {
+        document.getElementById('status-icon-pending').classList.add('hidden');
+
+        const successIcon = document.getElementById('status-icon-success');
+        successIcon.classList.remove('hidden');
+        // Restart the CSS animations in case this element was ever shown before
+        successIcon.querySelectorAll('[class*="animate-"]').forEach(el => {
+            el.style.animation = 'none';
+            void el.offsetWidth; // force reflow so the animation replays
+            el.style.animation = '';
+        });
+
+        document.getElementById('status-subheading').textContent = 'Payment Confirmed!';
+        document.getElementById('status-sub-subtext').textContent =
+            "We've received your payment — your application is now being processed.";
+
+        setStatusBadge('Success', 'green');
+
+        const card = document.getElementById('receipt-card');
+        card.classList.add('animate-confirmed-glow');
+    }
+
+    let activePollTimer = null;
+    let currentPaymentReference = null;
+
+    function pollPaymentStatus(reference) {
+        const POLL_INTERVAL_MS = 3000;
+        const MAX_WAIT_MS = 120000; // real STK pushes can take 30-90s end-to-end; give real headroom
+        const startedAt = Date.now();
+
+        document.getElementById('payment-cancel-btn').classList.remove('hidden');
+
+        if (activePollTimer) clearInterval(activePollTimer);
+
+        activePollTimer = setInterval(async () => {
+            if (Date.now() - startedAt > MAX_WAIT_MS) {
+                clearInterval(activePollTimer);
+                activePollTimer = null;
+                setStatusBadge('Failed', 'red');
+                document.getElementById('payment-cancel-btn').classList.add('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/payment-status?reference=${encodeURIComponent(reference)}`);
+                const data = await res.json();
+
+                if (data.status === 'SUCCESS') {
+                    clearInterval(activePollTimer);
+                    activePollTimer = null;
+                    document.getElementById('payment-cancel-btn').classList.add('hidden');
+                    showPaymentConfirmed();
+                    setTimeout(() => {
+                        replaceScreen('payment-modal', 'success-screen');
+                    }, 2200);
+                } else if (data.status === 'FAILED') {
+                    clearInterval(activePollTimer);
+                    activePollTimer = null;
+                    setStatusBadge('Failed', 'red');
+                    document.getElementById('payment-cancel-btn').classList.add('hidden');
+                }
+                // PENDING or UNKNOWN: keep polling silently
+            } catch (err) {
+                // Network hiccup — keep polling, don't fail the whole flow on one blip
+            }
+        }, POLL_INTERVAL_MS);
+    }
+
+    async function cancelPendingPayment() {
+        if (activePollTimer) {
+            clearInterval(activePollTimer);
+            activePollTimer = null;
+        }
+        document.getElementById('payment-cancel-btn').classList.add('hidden');
+        setStatusBadge('Cancelling…', 'blue');
+
+        if (!currentPaymentReference) {
+            setStatusBadge('Failed', 'red');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/cancel-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: currentPaymentReference })
+            });
+            const data = await res.json();
+
+            // Important: it's possible the M-Pesa payment actually went
+            // through a split-second before the user tapped cancel. CitaPay's
+            // cancel endpoint won't un-complete a finished transaction, and
+            // reports its real status back — so we must reflect THAT, not
+            // just assume "cancel" means "failed."
+            if (data.status === 'SUCCESS') {
+                showPaymentConfirmed();
+                setTimeout(() => {
+                    replaceScreen('payment-modal', 'success-screen');
+                }, 2200);
+            } else {
+                setStatusBadge('Failed', 'red');
+            }
+        } catch (err) {
+            // Couldn't confirm either way — show Failed rather than leaving
+            // an ambiguous "Cancelling…" state on screen indefinitely, but
+            // this is a case worth a real status-check retry in production.
+            setStatusBadge('Failed', 'red');
+        }
+    }
+</script>
+
+
+    <script>
+        // Random Activity Generator
+        const phonePrefixes = ['0719', '0722', '0703', '0745', '0798', '0711', '0110', '0748'];
+        const amounts = ['5,000', '10,000', '15,000', '25,000', '35,000', '45,000'];
+
+        function showRandomToast() {
+            // Suppress toasts if a modal is open
+            const activeModals = document.querySelectorAll('[id$="modal"], [id$="screen"]');
+            for (let modal of activeModals) {
+                if (!modal.classList.contains('hidden')) return;
+            }
+
+            const toast = document.getElementById('activity-toast');
+            const message = document.getElementById('toast-message');
+
+            const prefix = phonePrefixes[Math.floor(Math.random() * phonePrefixes.length)];
+            const amount = amounts[Math.floor(Math.random() * amounts.length)];
+            const suffix = Math.floor(10 + Math.random() * 89);
+
+            message.innerText = `${prefix}****${suffix} received Ksh ${amount}`;
+
+            toast.classList.remove('opacity-0', 'translate-y-4');
+            toast.classList.add('opacity-1', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                toast.classList.remove('opacity-1', 'translate-y-0');
+            }, 5000);
+        }
+
+        setInterval(() => {
+            if (Math.random() > 0.5) showRandomToast();
+        }, 8000);
+
+        // Hide Splash Screen
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                splash.classList.add('hidden');
+                // Allow scrolling after splash
+                document.body.style.overflow = 'auto';
+            }, 3000); // 3 seconds delay
+        });
+
+        // Prevent scrolling during splash
+        document.body.style.overflow = 'hidden';
+    </script>
+</body>
+
+</html>
