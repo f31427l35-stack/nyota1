@@ -60,8 +60,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Missing reference' });
     }
 
-    if (!process.env.BLUEPAY_BASIC_AUTH || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
-        console.error('Missing BLUEPAY_BASIC_AUTH, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
+    if (!process.env.BLUEPAY_BASIC_AUTH || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL || !process.env.BLUEPAY_REFERENCE_PREFIX) {
+        console.error('Missing BLUEPAY_BASIC_AUTH, BLUEPAY_CHANNEL_ID, BLUEPAY_BASE_URL, or BLUEPAY_REFERENCE_PREFIX environment variable');
         return res.status(500).json({ success: false, message: 'Payment provider not configured' });
     }
 
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
     // REFERENCE_PREFIX_MISMATCH). We keep our own `reference` unprefixed
     // everywhere else — frontend, local store, payment-status.js — and
     // only prepend the prefix on the value actually sent to BluePay.
-    const bluepayReference = `${process.env.BLUEPAY_REFERENCE_PREFIX || ''}${reference}`;
+    const bluepayReference = `${process.env.BLUEPAY_REFERENCE_PREFIX}${reference}`;
 
     try {
         // TODO: persist the application (applicant, loan_limit) to your
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
             loan_limit
         });
 
-        console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'reference:', reference);
+        console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'reference:', reference, 'account_reference sent:', bluepayReference);
 
         const response = await fetch(endpoint, {
             method: 'POST',
