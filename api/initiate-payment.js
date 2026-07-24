@@ -13,15 +13,21 @@
  *                            credential from the BluePay dashboard's API
  *                            Keys page, used as-is in the Authorization
  *                            header, no encoding needed in code)
- *     BLUEPAY_CHANNEL_ID    (the channel UUID configured in BluePay)
+ *     BLUEPAY_CHANNEL_ID    (the channel UUID configured in BluePay —
+ *                            use the full UUID, e.g. from the dashboard's
+ *                            "Copy channel ID" button, not the short
+ *                            display number shown next to it)
  *     BLUEPAY_BASE_URL      (https://bluepay.co.ke)
- *     BLUEPAY_REFERENCE_PREFIX  (this channel's required account_reference
- *                            prefix — check the dashboard's channel
- *                            settings or GET /api/payment_channels.php
- *                            for the exact value. Without it BluePay
- *                            rejects the STK request with "account
- *                            reference must start with a merchant
- *                            prefix.")
+ *
+ * NOTE ON account_reference: earlier versions of this file tried to build
+ * one manually with a guessed prefix, which BluePay rejected with
+ * "account_reference must start with merchant prefix". The prefix is
+ * merchant/channel-specific and set when the channel was created — rather
+ * than guessing it, this version simply OMITS account_reference from the
+ * request entirely. Per BluePay's docs, when it's omitted they
+ * auto-generate one using the channel's correct prefix, and return it in
+ * the response (`body.account_reference`) — which we capture below for
+ * our own records, purely informational.
  *
  * NOTE: the webhook signature in bluepay-callback.js is verified with a
  * separate BLUEPAY_API_SECRET from the same API Keys page — per BluePay's
@@ -60,20 +66,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Missing reference' });
     }
 
-    if (!process.env.BLUEPAY_BASIC_AUTH || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL || !process.env.BLUEPAY_REFERENCE_PREFIX) {
-        console.error('Missing BLUEPAY_BASIC_AUTH, BLUEPAY_CHANNEL_ID, BLUEPAY_BASE_URL, or BLUEPAY_REFERENCE_PREFIX environment variable');
+    if (!process.env.BLUEPAY_BASIC_AUTH || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
+        console.error('Missing BLUEPAY_BASIC_AUTH, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
         return res.status(500).json({ success: false, message: 'Payment provider not configured' });
     }
 
     const normalizedPhone = normalizePhoneNumber(phone_number);
     const endpoint = `${process.env.BLUEPAY_BASE_URL}/api/stk_push.php`;
-
-    // BluePay requires account_reference to start with this channel's
-    // merchant prefix (docs: "prefix rules apply", error
-    // REFERENCE_PREFIX_MISMATCH). We keep our own `reference` unprefixed
-    // everywhere else — frontend, local store, payment-status.js — and
-    // only prepend the prefix on the value actually sent to BluePay.
-    const bluepayReference = `${process.env.BLUEPAY_REFERENCE_PREFIX}${reference}`;
 
     try {
         // TODO: persist the application (applicant, loan_limit) to your
@@ -85,7 +84,7 @@ export default async function handler(req, res) {
             loan_limit
         });
 
-        console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'reference:', reference, 'account_reference sent:', bluepayReference);
+        console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'our reference:', reference);
 
         const response = await fetch(endpoint, {
             method: 'POST',
@@ -96,8 +95,10 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 channel_id: process.env.BLUEPAY_CHANNEL_ID,
                 phone: normalizedPhone,
-                amount: Math.round(Number(amount)),
-                account_reference: bluepayReference
+                amount: Math.round(Number(amount))
+                // account_reference intentionally omitted — see the note
+                // at the top of this file. BluePay auto-generates a
+                // correctly-prefixed one and returns it below.
             })
         });
 
@@ -141,7 +142,8 @@ export default async function handler(req, res) {
         setPaymentStatus(reference, {
             status: 'PENDING',
             stkRequestId: body.stk_request_id,
-            checkoutRequestId: body.checkout_request_id
+            checkoutRequestId: body.checkout_request_id,
+            bluepayAccountReference: body.account_reference // BluePay-assigned, informational only
         });
 
         return res.status(200).json({
