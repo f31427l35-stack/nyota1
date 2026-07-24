@@ -1052,10 +1052,19 @@
             pollPaymentStatus(ref);
 
         } catch (error) {
-            // A real failure to reach our own backend at all (network down,
-            // DNS failure, etc.) — genuinely nothing was sent in this case.
-            setStatusBadge('Failed', 'red');
-            alert('Network error: could not reach the server. Please check your connection and try again.');
+            // Even though the fetch to OUR OWN backend failed here, that
+            // doesn't mean nothing happened — the backend writes a PENDING
+            // status record BEFORE it even calls BluePay, so it's possible
+            // the request actually went through (and the STK push was
+            // sent, possibly even paid already) even though the response
+            // never made it back to this browser. Telling the user to
+            // "try again" without checking first risks a real double
+            // charge. So: check before giving up, don't assume failure.
+            console.error('Fetch to /api/initiate-payment failed:', error);
+            setStatusBadge('Pending', 'blue');
+            document.getElementById('status-sub-subtext').textContent =
+                "We couldn't confirm your request reached our server, but it may still be processing — checking now, please don't submit another payment yet.";
+            pollPaymentStatus(ref);
         }
     }
 
