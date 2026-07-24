@@ -15,6 +15,13 @@
  *                            header, no encoding needed in code)
  *     BLUEPAY_CHANNEL_ID    (the channel UUID configured in BluePay)
  *     BLUEPAY_BASE_URL      (https://bluepay.co.ke)
+ *     BLUEPAY_REFERENCE_PREFIX  (this channel's required account_reference
+ *                            prefix — check the dashboard's channel
+ *                            settings or GET /api/payment_channels.php
+ *                            for the exact value. Without it BluePay
+ *                            rejects the STK request with "account
+ *                            reference must start with a merchant
+ *                            prefix.")
  *
  * NOTE: the webhook signature in bluepay-callback.js is verified with a
  * separate BLUEPAY_API_SECRET from the same API Keys page — per BluePay's
@@ -61,6 +68,13 @@ export default async function handler(req, res) {
     const normalizedPhone = normalizePhoneNumber(phone_number);
     const endpoint = `${process.env.BLUEPAY_BASE_URL}/api/stk_push.php`;
 
+    // BluePay requires account_reference to start with this channel's
+    // merchant prefix (docs: "prefix rules apply", error
+    // REFERENCE_PREFIX_MISMATCH). We keep our own `reference` unprefixed
+    // everywhere else — frontend, local store, payment-status.js — and
+    // only prepend the prefix on the value actually sent to BluePay.
+    const bluepayReference = `${process.env.BLUEPAY_REFERENCE_PREFIX || ''}${reference}`;
+
     try {
         // TODO: persist the application (applicant, loan_limit) to your
         // real database here — the store below only tracks payment status.
@@ -83,7 +97,7 @@ export default async function handler(req, res) {
                 channel_id: process.env.BLUEPAY_CHANNEL_ID,
                 phone: normalizedPhone,
                 amount: Math.round(Number(amount)),
-                account_reference: reference
+                account_reference: bluepayReference
             })
         });
 
