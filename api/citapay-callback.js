@@ -100,16 +100,23 @@ export default async function handler(req, res) {
         return res.status(200).json({ received: true });
     }
 
-    // account_reference is echoed back exactly as we sent it in
-    // initiate-payment.js's STK request, so it doubles as our own
-    // reference directly — no lookup table needed for the common case.
-    // Fall back to the checkout_request_id -> reference map (populated at
-    // initiate-time) only if account_reference is missing or unrecognized,
-    // e.g. for pay-link-initiated payments that didn't go through our
-    // initiate-payment.js at all.
-    let reference = data.account_reference;
-    if (!reference && data.checkout_request_id) {
-        reference = getReferenceByCheckoutRequestId(data.checkout_request_id);
+    // checkout_request_id is the reliable match — it's linked to our
+    // reference at initiate-time regardless of any prefix BluePay adds.
+    // account_reference comes back WITH the merchant prefix now (see
+    // BLUEPAY_REFERENCE_PREFIX in initiate-payment.js), so it only works
+    // as a fallback once that prefix is stripped back off — and won't
+    // help at all for payments that didn't originate from
+    // initiate-payment.js (e.g. pay links), which is what this fallback
+    // is really for.
+    let reference = data.checkout_request_id
+        ? getReferenceByCheckoutRequestId(data.checkout_request_id)
+        : null;
+
+    if (!reference && data.account_reference) {
+        const prefix = process.env.BLUEPAY_REFERENCE_PREFIX || '';
+        reference = prefix && data.account_reference.startsWith(prefix)
+            ? data.account_reference.slice(prefix.length)
+            : data.account_reference;
     }
 
     if (!reference) {
