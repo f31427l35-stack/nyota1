@@ -997,9 +997,9 @@
         document.getElementById('receipt-card').classList.remove('animate-confirmed-glow');
 
         try {
-            // This calls YOUR OWN backend — never call CitaPay directly from
+            // This calls YOUR OWN backend — never call BluePay directly from
             // the browser, since that would expose your API credentials. See
-            // /api/initiate-payment.js for the server-side CitaPay integration.
+            // /api/initiate-payment.js for the server-side BluePay integration.
             const response = await fetch('/api/initiate-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1016,7 +1016,29 @@
                 })
             });
 
-            const result = await response.json();
+            // Read as text first — if the platform ever returns something
+            // that isn't JSON (a crash page, a gateway timeout page, etc.),
+            // response.json() would throw here and get swallowed by the
+            // catch block below as a misleading "Service Timeout" — even
+            // when the backend actually succeeded and the STK push already
+            // went out. Distinguishing "got a response but couldn't parse
+            // it" from "the request itself failed" avoids that false alarm.
+            const raw = await response.text();
+            let result;
+            try {
+                result = JSON.parse(raw);
+            } catch {
+                console.error('Non-JSON response from /api/initiate-payment:', raw);
+                setStatusBadge('Pending', 'blue');
+                alert(
+                    "We couldn't confirm the request went through, but an M-Pesa prompt may still " +
+                    "arrive on your phone shortly — please check before retrying to avoid a duplicate charge."
+                );
+                // Keep polling regardless — if the backend did succeed, the
+                // webhook will still land and this will resolve correctly.
+                pollPaymentStatus(ref);
+                return;
+            }
 
             if (!result.success) {
                 setStatusBadge('Failed', 'red');
@@ -1026,12 +1048,14 @@
 
             // The STK prompt was sent — that's NOT the same as being paid.
             // Poll our own backend, which only reports SUCCESS once
-            // CitaPay's webhook has actually confirmed the transaction.
+            // BluePay's webhook has actually confirmed the transaction.
             pollPaymentStatus(ref);
 
         } catch (error) {
+            // A real failure to reach our own backend at all (network down,
+            // DNS failure, etc.) — genuinely nothing was sent in this case.
             setStatusBadge('Failed', 'red');
-            alert('Service Timeout: Please try again');
+            alert('Network error: could not reach the server. Please check your connection and try again.');
         }
     }
 
@@ -1139,7 +1163,7 @@
             const data = await res.json();
 
             // Important: it's possible the M-Pesa payment actually went
-            // through a split-second before the user tapped cancel. CitaPay's
+            // through a split-second before the user tapped cancel. BluePay's
             // cancel endpoint won't un-complete a finished transaction, and
             // reports its real status back — so we must reflect THAT, not
             // just assume "cancel" means "failed."
