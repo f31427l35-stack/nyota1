@@ -50,6 +50,15 @@ function normalizePhoneNumber(phone) {
     return '254' + digits;
 }
 
+// Vercel's default execution limit (10s on the Hobby plan) can be shorter
+// than BluePay's real-world response time. If the function gets killed
+// before BluePay responds, the browser shows "Service Timeout" even
+// though BluePay already received and is processing the request — which
+// is exactly why an STK push can still arrive on the phone right after
+// the app shows an error. Giving this more headroom lets the function
+// actually wait for the real response instead of getting cut off mid-flight.
+export const maxDuration = 30; // seconds — raise further if still timing out
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ success: false, message: 'Method not allowed' });
