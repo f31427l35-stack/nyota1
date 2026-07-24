@@ -129,6 +129,12 @@ export default async function handler(req, res) {
             status: 'FAILED',
             bluepayStatus: data.status,
             checkoutRequestId: data.checkout_request_id,
+            // BluePay's webhook payload doesn't document a customer-facing
+            // failure-reason field (unlike PayNexus's data.user_message),
+            // so payment-status.js falls back to a generic message here.
+            // If BluePay's STK error codes page documents a message field
+            // in the failed-event payload, swap this for that value.
+            userMessage: 'Payment could not be completed. Please try again.',
             event
         });
     } else {
