@@ -9,13 +9,16 @@
  *
  * Set these in your Vercel project:
  *   Project -> Settings -> Environment Variables
- *     BLUEPAY_API_KEY      (Bearer key from your BluePay dashboard)
- *     BLUEPAY_CHANNEL_ID   (the channel UUID configured in BluePay)
- *     BLUEPAY_BASE_URL     (the actual API host from your BluePay
- *                           dashboard's API Reference page — the docs
- *                           snippet only shows "YOUR_DOMAIN" as a
- *                           placeholder, so confirm the real value there
- *                           before deploying, e.g. https://api.bluepay.co.ke)
+ *     BLUEPAY_API_USERNAME  (named Basic-auth credential from BluePay dashboard)
+ *     BLUEPAY_API_PASSWORD  (paired with the username above)
+ *     BLUEPAY_CHANNEL_ID    (the channel UUID configured in BluePay)
+ *     BLUEPAY_BASE_URL      (https://bluepay.co.ke)
+ *
+ * NOTE: this account uses Basic auth (api_username/api_password) for API
+ * calls. The webhook signature in bluepay-callback.js is verified with a
+ * separate BLUEPAY_API_SECRET — per BluePay's docs, webhook HMAC always
+ * uses the API secret, never the Basic credentials, so that env var is
+ * still required even though it's not used here.
  */
 
 import { setPaymentStatus, linkCheckoutRequestId } from '../lib/store.js';
@@ -47,8 +50,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Missing reference' });
     }
 
-    if (!process.env.BLUEPAY_API_KEY || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
-        console.error('Missing BLUEPAY_API_KEY, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
+    if (!process.env.BLUEPAY_API_USERNAME || !process.env.BLUEPAY_API_PASSWORD || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
+        console.error('Missing BLUEPAY_API_USERNAME, BLUEPAY_API_PASSWORD, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
         return res.status(500).json({ success: false, message: 'Payment provider not configured' });
     }
 
@@ -67,10 +70,14 @@ export default async function handler(req, res) {
 
         console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'reference:', reference);
 
+        const basicAuth = Buffer.from(
+            `${process.env.BLUEPAY_API_USERNAME}:${process.env.BLUEPAY_API_PASSWORD}`
+        ).toString('base64');
+
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.BLUEPAY_API_KEY}`,
+                'Authorization': `Basic ${basicAuth}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
