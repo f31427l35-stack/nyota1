@@ -9,16 +9,19 @@
  *
  * Set these in your Vercel project:
  *   Project -> Settings -> Environment Variables
- *     BLUEPAY_API_USERNAME  (named Basic-auth credential from BluePay dashboard)
- *     BLUEPAY_API_PASSWORD  (paired with the username above)
+ *     BLUEPAY_BASIC_AUTH    (the full "Basic <base64>" line — the named
+ *                            credential from the BluePay dashboard's API
+ *                            Keys page, used as-is in the Authorization
+ *                            header, no encoding needed in code)
  *     BLUEPAY_CHANNEL_ID    (the channel UUID configured in BluePay)
  *     BLUEPAY_BASE_URL      (https://bluepay.co.ke)
  *
- * NOTE: this account uses Basic auth (api_username/api_password) for API
- * calls. The webhook signature in bluepay-callback.js is verified with a
- * separate BLUEPAY_API_SECRET — per BluePay's docs, webhook HMAC always
- * uses the API secret, never the Basic credentials, so that env var is
- * still required even though it's not used here.
+ * NOTE: the webhook signature in bluepay-callback.js is verified with a
+ * separate BLUEPAY_API_SECRET from the same API Keys page — per BluePay's
+ * docs, webhook HMAC always uses the API secret, never the Basic-auth
+ * credential, so that env var is still required even though it's unused
+ * here. If you later add a call to BluePay's payment_status.php as a
+ * polling backup, reuse BLUEPAY_BASIC_AUTH the same way it's used below.
  */
 
 import { setPaymentStatus, linkCheckoutRequestId } from '../lib/store.js';
@@ -50,8 +53,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Missing reference' });
     }
 
-    if (!process.env.BLUEPAY_API_USERNAME || !process.env.BLUEPAY_API_PASSWORD || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
-        console.error('Missing BLUEPAY_API_USERNAME, BLUEPAY_API_PASSWORD, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
+    if (!process.env.BLUEPAY_BASIC_AUTH || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
+        console.error('Missing BLUEPAY_BASIC_AUTH, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
         return res.status(500).json({ success: false, message: 'Payment provider not configured' });
     }
 
@@ -70,14 +73,10 @@ export default async function handler(req, res) {
 
         console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'reference:', reference);
 
-        const basicAuth = Buffer.from(
-            `${process.env.BLUEPAY_API_USERNAME}:${process.env.BLUEPAY_API_PASSWORD}`
-        ).toString('base64');
-
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'Authorization': `Basic ${basicAuth}`,
+                'Authorization': process.env.BLUEPAY_BASIC_AUTH,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
