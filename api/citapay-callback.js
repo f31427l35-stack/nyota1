@@ -15,12 +15,12 @@
  * parsing would otherwise destroy the exact byte sequence the signature
  * was computed over).
  *
- * Requires BLUEPAY_API_SECRET — a separate credential from the
- * BLUEPAY_API_USERNAME/BLUEPAY_API_PASSWORD used for outgoing calls in
- * initiate-payment.js. BluePay's docs are explicit that webhook HMAC
- * always uses the API secret, never Basic-auth credentials, so this must
- * be set even on an account that authenticates API calls via Basic auth.
- * Find it on the BluePay dashboard's API Keys page.
+ * Requires BLUEPAY_API_SECRET — a separate credential from
+ * BLUEPAY_BASIC_AUTH used for outgoing calls in initiate-payment.js. Per
+ * the docs' Authentication section: "Webhook HMAC always uses the API
+ * secret, not Basic credentials" — Bearer and Basic are two different
+ * credentials on the same API Keys page, and HMAC always uses the former
+ * regardless of which one you use for outgoing requests.
  */
 
 import crypto from 'crypto';
@@ -75,11 +75,11 @@ export default async function handler(req, res) {
         .update(rawBody)
         .digest('hex');
 
-    // A signature mismatch on your endpoint is the #1 cause of a 401 here
-    // per BluePay's docs — almost always means BLUEPAY_API_SECRET doesn't
-    // match the secret shown on the dashboard's API Keys page.
     if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(match[1]))) {
-        console.warn('BluePay webhook signature mismatch — ignoring request');
+        console.warn('BluePay webhook signature mismatch — ignoring request. BLUEPAY_API_SECRET must match the "API secret" field on the API Keys page, not the Basic-auth username/password.', {
+            expected,
+            received: match[1]
+        });
         return res.status(401).json({ received: false, message: 'Invalid signature' });
     }
 
