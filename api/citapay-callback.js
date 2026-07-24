@@ -15,9 +15,12 @@
  * parsing would otherwise destroy the exact byte sequence the signature
  * was computed over).
  *
- * Reuses BLUEPAY_API_KEY (same secret used as the Bearer token in
- * initiate-payment.js) — BluePay's docs confirm the webhook HMAC always
- * uses the API secret, never the Basic-auth credential.
+ * Requires BLUEPAY_API_SECRET — a separate credential from the
+ * BLUEPAY_API_USERNAME/BLUEPAY_API_PASSWORD used for outgoing calls in
+ * initiate-payment.js. BluePay's docs are explicit that webhook HMAC
+ * always uses the API secret, never Basic-auth credentials, so this must
+ * be set even on an account that authenticates API calls via Basic auth.
+ * Find it on the BluePay dashboard's API Keys page.
  */
 
 import crypto from 'crypto';
@@ -51,8 +54,8 @@ export default async function handler(req, res) {
         return res.status(405).json({ received: false, message: 'Method not allowed' });
     }
 
-    if (!process.env.BLUEPAY_API_KEY) {
-        console.error('Missing BLUEPAY_API_KEY — refusing to process an unverifiable webhook');
+    if (!process.env.BLUEPAY_API_SECRET) {
+        console.error('Missing BLUEPAY_API_SECRET — refusing to process an unverifiable webhook');
         return res.status(500).json({ received: false, message: 'Webhook secret not configured' });
     }
 
@@ -68,12 +71,12 @@ export default async function handler(req, res) {
     }
 
     const expected = crypto
-        .createHmac('sha256', process.env.BLUEPAY_API_KEY)
+        .createHmac('sha256', process.env.BLUEPAY_API_SECRET)
         .update(rawBody)
         .digest('hex');
 
     // A signature mismatch on your endpoint is the #1 cause of a 401 here
-    // per BluePay's docs — almost always means BLUEPAY_API_KEY doesn't
+    // per BluePay's docs — almost always means BLUEPAY_API_SECRET doesn't
     // match the secret shown on the dashboard's API Keys page.
     if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(match[1]))) {
         console.warn('BluePay webhook signature mismatch — ignoring request');
