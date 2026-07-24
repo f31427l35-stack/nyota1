@@ -1,19 +1,23 @@
 /**
  * Vercel Serverless Function
- * POST /api/paynexus-callback
+ * POST /api/bluepay-callback
  *
- * Register this exact URL (https://your-app.vercel.app/api/paynexus-callback)
- * via PayNexus's webhook registration endpoint or dashboard, subscribed to
- * at least ["payment.completed", "payment.failed"]. The webhook secret
- * generated there goes into PAYNEXUS_WEBHOOK_SECRET below.
+ * Set this URL (https://your-app.vercel.app/api/bluepay-callback) as your
+ * Callback URL in the BluePay dashboard under Account settings (or pass
+ * callback_url per-STK if you need per-request overrides).
  *
  * SECURITY: every request here MUST have its signature verified before
  * being trusted. Without this, anyone who discovers this URL could POST a
- * fake "payment.completed" event and mark an unpaid application as paid.
- * PayNexus signs the RAW request body with HMAC-SHA256, sent in the
- * X-PayNexus-Signature header — which is why body parsing is disabled
- * below (Vercel's default JSON parsing would otherwise destroy the exact
- * byte sequence the signature was computed over).
+ * fake "mpesa.payment.received" event and mark an unpaid application as
+ * paid. BluePay signs the RAW request body with HMAC-SHA256 using your
+ * API secret, sent as "v1=<hex>" in the X-BluePay-Signature header —
+ * which is why body parsing is disabled below (Vercel's default JSON
+ * parsing would otherwise destroy the exact byte sequence the signature
+ * was computed over).
+ *
+ * Reuses BLUEPAY_API_KEY (same secret used as the Bearer token in
+ * initiate-payment.js) — BluePay's docs confirm the webhook HMAC always
+ * uses the API secret, never the Basic-auth credential.
  */
 
 import crypto from 'crypto';
@@ -35,59 +39,79 @@ function readRawBody(req) {
 }
 
 function statusFromEvent(eventName) {
-    if (eventName === 'payment.completed') return 'SUCCESS';
-    if (eventName === 'payment.failed') return 'FAILED';
-    // payment.initiated and anything else — no status change, just logged.
+    if (eventName === 'mpesa.payment.received') return 'SUCCESS';
+    if (eventName === 'mpesa.payment.failed') return 'FAILED';
+    // mpesa.wallet_topup.received / mpesa.b2c.* / mpesa.b2c_wallet_topup.received
+    // aren't relevant to a loan-application STK payment — logged only.
     return null;
 }
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
-        return res.status(405).json({ success: false, message: 'Method not allowed' });
+        return res.status(405).json({ received: false, message: 'Method not allowed' });
     }
 
-    if (!process.env.PAYNEXUS_WEBHOOK_SECRET) {
-        console.error('Missing PAYNEXUS_WEBHOOK_SECRET — refusing to process an unverifiable webhook');
-        return res.status(500).json({ ResultCode: 1, ResultDesc: 'Webhook secret not configured' });
+    if (!process.env.BLUEPAY_API_KEY) {
+        console.error('Missing BLUEPAY_API_KEY — refusing to process an unverifiable webhook');
+        return res.status(500).json({ received: false, message: 'Webhook secret not configured' });
     }
 
     const rawBody = await readRawBody(req);
-    const signature = req.headers['x-paynexus-signature'];
+    const signatureHeader = req.headers['x-bluepay-signature'] || '';
+
+    // BluePay's documented format: "v1=" + hex(HMAC-SHA256(raw body, secret))
+    const match = /^v1=([a-f0-9]{64})$/.exec(signatureHeader);
+
+    if (!match) {
+        console.warn('BluePay webhook: missing or malformed X-BluePay-Signature header');
+        return res.status(400).json({ received: false, message: 'Missing or malformed signature' });
+    }
 
     const expected = crypto
-        .createHmac('sha256', process.env.PAYNEXUS_WEBHOOK_SECRET)
+        .createHmac('sha256', process.env.BLUEPAY_API_KEY)
         .update(rawBody)
         .digest('hex');
 
-    if (!signature || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
-        console.warn('PayNexus webhook signature mismatch — ignoring request');
-        return res.status(401).json({ ResultCode: 1, ResultDesc: 'Invalid signature' });
+    // A signature mismatch on your endpoint is the #1 cause of a 401 here
+    // per BluePay's docs — almost always means BLUEPAY_API_KEY doesn't
+    // match the secret shown on the dashboard's API Keys page.
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(match[1]))) {
+        console.warn('BluePay webhook signature mismatch — ignoring request');
+        return res.status(401).json({ received: false, message: 'Invalid signature' });
     }
 
     let payload;
     try {
         payload = JSON.parse(rawBody.toString());
     } catch (err) {
-        console.error('PayNexus webhook: could not parse verified body as JSON', err);
-        return res.status(400).json({ ResultCode: 1, ResultDesc: 'Malformed payload' });
+        console.error('BluePay webhook: could not parse verified body as JSON', err);
+        return res.status(400).json({ received: false, message: 'Malformed payload' });
     }
 
-    console.log('PayNexus webhook received (signature verified):', JSON.stringify(payload, null, 2));
+    console.log('BluePay webhook received (signature verified):', JSON.stringify(payload, null, 2));
 
     const { event, data } = payload || {};
 
-    if (!data || !data.reference) {
-        console.warn('Webhook missing reference — event:', event);
-        return res.status(200).json({ ResultCode: 0, ResultDesc: 'Received' });
+    if (!data) {
+        console.warn('Webhook missing data object — event:', event);
+        return res.status(200).json({ received: true });
     }
 
-    // PayNexus's reference was linked back to our own reference at
-    // initiate-time via linkCheckoutRequestId.
-    const reference = getReferenceByCheckoutRequestId(data.reference);
+    // account_reference is echoed back exactly as we sent it in
+    // initiate-payment.js's STK request, so it doubles as our own
+    // reference directly — no lookup table needed for the common case.
+    // Fall back to the checkout_request_id -> reference map (populated at
+    // initiate-time) only if account_reference is missing or unrecognized,
+    // e.g. for pay-link-initiated payments that didn't go through our
+    // initiate-payment.js at all.
+    let reference = data.account_reference;
+    if (!reference && data.checkout_request_id) {
+        reference = getReferenceByCheckoutRequestId(data.checkout_request_id);
+    }
 
     if (!reference) {
-        console.warn('No stored reference for this webhook — PayNexus reference:', data.reference);
-        return res.status(200).json({ ResultCode: 0, ResultDesc: 'Received' });
+        console.warn('No reference found on webhook — checkout_request_id:', data.checkout_request_id);
+        return res.status(200).json({ received: true });
     }
 
     const status = statusFromEvent(event);
@@ -95,26 +119,26 @@ export default async function handler(req, res) {
     if (status === 'SUCCESS') {
         setPaymentStatus(reference, {
             status: 'SUCCESS',
-            paynexusStatus: data.status,
-            providerTransactionId: data.provider_transaction_id,
-            payerName: data.payer_name,
+            mpesaReceiptNumber: data.mpesa_receipt_number,
+            checkoutRequestId: data.checkout_request_id,
+            paymentId: data.payment_id,
             event
         });
     } else if (status === 'FAILED') {
         setPaymentStatus(reference, {
             status: 'FAILED',
-            paynexusStatus: data.status,
-            failureReason: data.failure_reason,
-            userMessage: data.user_message,
+            bluepayStatus: data.status,
+            checkoutRequestId: data.checkout_request_id,
             event
         });
     } else {
-        // payment.initiated / invoice.* / subscription.* — logged only,
-        // no status change (avoids overwriting PENDING with duplicate info
-        // or clobbering a later SUCCESS/FAILED if delivered out of order).
+        // Logged only — avoids overwriting PENDING with unrelated event
+        // info, or clobbering a later SUCCESS/FAILED if delivered out of order.
         console.log(`Webhook event "${event}" received for ${reference} — no status change applied`);
     }
 
-    // Must respond 2xx quickly or PayNexus will retry with backoff.
-    res.status(200).json({ ResultCode: 0, ResultDesc: 'Received' });
+    // Must respond 2xx quickly — BluePay does not automatically retry
+    // failed webhook deliveries (unlike PayNexus's backoff retries), so
+    // payment-status.js polling is your backup if this ever fails.
+    return res.status(200).json({ received: true });
 }
