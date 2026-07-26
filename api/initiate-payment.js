@@ -3,41 +3,61 @@
  * POST /api/initiate-payment
  *
  * Called by the frontend when the user taps "Proceed to Payment".
- * Reads your PayNexus secret key from Vercel Environment Variables (never
- * from the frontend) and triggers a real STK push via PayNexus's
- * STK Push API.
+ * Reads your BluePay API key + channel ID from Vercel Environment
+ * Variables (never from the frontend) and triggers a real STK push via
+ * BluePay's STK Push API.
  *
  * Set these in your Vercel project:
  *   Project -> Settings -> Environment Variables
- *     PAYNEXUS_SECRET_KEY   (sk_... from your PayNexus dashboard)
+ *     BLUEPAY_BASIC_AUTH    (the full "Basic <base64>" line — the named
+ *                            credential from the BluePay dashboard's API
+ *                            Keys page, used as-is in the Authorization
+ *                            header, no encoding needed in code)
+ *     BLUEPAY_CHANNEL_ID    (the channel UUID configured in BluePay —
+ *                            use the full UUID, e.g. from the dashboard's
+ *                            "Copy channel ID" button, not the short
+ *                            display number shown next to it)
+ *     BLUEPAY_BASE_URL      (https://bluepay.co.ke)
+ *
+ * NOTE ON account_reference: earlier versions of this file tried to build
+ * one manually with a guessed prefix, which BluePay rejected with
+ * "account_reference must start with merchant prefix". The prefix is
+ * merchant/channel-specific and set when the channel was created — rather
+ * than guessing it, this version simply OMITS account_reference from the
+ * request entirely. Per BluePay's docs, when it's omitted they
+ * auto-generate one using the channel's correct prefix, and return it in
+ * the response (`body.account_reference`) — which we capture below for
+ * our own records, purely informational.
+ *
+ * NOTE: the webhook signature in bluepay-callback.js is verified with a
+ * separate BLUEPAY_API_SECRET from the same API Keys page — per BluePay's
+ * docs, webhook HMAC always uses the API secret, never the Basic-auth
+ * credential, so that env var is still required even though it's unused
+ * here. If you later add a call to BluePay's payment_status.php as a
+ * polling backup, reuse BLUEPAY_BASIC_AUTH the same way it's used below.
  */
 
 import { setPaymentStatus, linkCheckoutRequestId } from '../lib/store.js';
 
-const BASE_URL = 'https://paynexus.co.ke/api';
-
 function normalizePhoneNumber(phone) {
-    // PayNexus's documented format is 0xxxxxxxxx (e.g. 0746990866).
+    // BluePay's documented format is 254xxxxxxxxx (e.g. 254712345678).
     // Defensive normalization since we don't control what shape the
-    // frontend sends — handles 254-prefixed, bare 9-digit, or already
-    // correct 0-prefixed input.
+    // frontend sends — handles 0-prefixed, bare 9-digit, or already
+    // correct 254-prefixed input.
     const digits = String(phone).replace(/\D/g, '');
-    if (digits.startsWith('0')) return digits;
-    if (digits.startsWith('254')) return '0' + digits.slice(3);
-    return '0' + digits;
+    if (digits.startsWith('254')) return digits;
+    if (digits.startsWith('0')) return '254' + digits.slice(1);
+    return '254' + digits;
 }
 
 // Vercel's default execution limit (10s on the Hobby plan) can be shorter
-// than PayNexus's real-world response time. If the function gets killed
-// before PayNexus responds, the browser sees a failure even though
-// PayNexus already received and is processing the request — which is
-// exactly why an STK push can still arrive on the phone right after the
-// app shows an error. Giving this more headroom lets the function
-// actually wait for the real response instead of getting cut off
-// mid-flight. If real money still gets charged after an error with this
-// set, the actual ceiling may be the Vercel plan's hard cap, not this
-// value — check the plan before raising it further.
-export const maxDuration = 30; // seconds
+// than BluePay's real-world response time. If the function gets killed
+// before BluePay responds, the browser shows "Service Timeout" even
+// though BluePay already received and is processing the request — which
+// is exactly why an STK push can still arrive on the phone right after
+// the app shows an error. Giving this more headroom lets the function
+// actually wait for the real response instead of getting cut off mid-flight.
+export const maxDuration = 30; // seconds — raise further if still timing out
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -55,12 +75,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: 'Missing reference' });
     }
 
-    if (!process.env.PAYNEXUS_SECRET_KEY) {
-        console.error('Missing PAYNEXUS_SECRET_KEY environment variable');
+    if (!process.env.BLUEPAY_BASIC_AUTH || !process.env.BLUEPAY_CHANNEL_ID || !process.env.BLUEPAY_BASE_URL) {
+        console.error('Missing BLUEPAY_BASIC_AUTH, BLUEPAY_CHANNEL_ID, or BLUEPAY_BASE_URL environment variable');
         return res.status(500).json({ success: false, message: 'Payment provider not configured' });
     }
 
     const normalizedPhone = normalizePhoneNumber(phone_number);
+    const endpoint = `${process.env.BLUEPAY_BASE_URL}/api/stk_push.php`;
 
     try {
         // TODO: persist the application (applicant, loan_limit) to your
@@ -72,43 +93,44 @@ export default async function handler(req, res) {
             loan_limit
         });
 
-        console.log('Calling PayNexus:', `${BASE_URL}/mpesa/payment/initiate`, 'phone:', normalizedPhone, 'amount:', amount, 'reference:', reference);
+        console.log('Calling BluePay:', endpoint, 'phone:', normalizedPhone, 'amount:', amount, 'our reference:', reference);
 
-        const response = await fetch(`${BASE_URL}/mpesa/payment/initiate`, {
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'X-API-Key': process.env.PAYNEXUS_SECRET_KEY,
+                'Authorization': process.env.BLUEPAY_BASIC_AUTH,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                amount: Math.round(Number(amount)),
+                channel_id: process.env.BLUEPAY_CHANNEL_ID,
                 phone: normalizedPhone,
-                description: applicant?.full_name
-                    ? `Loan application - ${applicant.full_name}`
-                    : `Loan application ${reference}`
+                amount: Math.round(Number(amount))
+                // account_reference intentionally omitted — see the note
+                // at the top of this file. BluePay auto-generates a
+                // correctly-prefixed one and returns it below.
             })
         });
 
-        console.log('PayNexus response status:', response.status);
+        console.log('BluePay response status:', response.status);
 
-        // Read as text first — if PayNexus (or Vercel itself, mid-timeout)
-        // ever returns a non-JSON response, response.json() would throw
-        // and get swallowed by the generic catch-block 502 below, hiding
-        // the real cause. Logging the raw body first keeps that visible.
+        // Read as text first — if BluePay ever returns a non-JSON error
+        // page (auth failure, 5xx, etc.) response.json() would throw and
+        // get swallowed by the generic catch-block 502 below, hiding the
+        // real cause. Logging the raw body first keeps that visible.
         const raw = await response.text();
-        console.log('PayNexus response body:', raw);
+        console.log('BluePay response body:', raw);
 
         let body;
         try {
             body = JSON.parse(raw);
         } catch {
-            console.error('PayNexus returned non-JSON response:', raw);
+            console.error('BluePay returned non-JSON response:', raw);
             setPaymentStatus(reference, { status: 'FAILED', error: raw });
             return res.status(502).json({ success: false, message: 'Payment provider returned an unexpected response' });
         }
 
-        if (!response.ok || !body.success) {
-            console.error('PayNexus payment initiation failed:', body);
+        if (!response.ok || !body.ok) {
+            console.error('BluePay payment initiation failed:', body);
             setPaymentStatus(reference, { status: 'FAILED', error: body });
             return res.status(502).json({
                 success: false,
@@ -116,32 +138,31 @@ export default async function handler(req, res) {
             });
         }
 
-        const data = body.data || {};
-
         // status here just means the request was accepted and the STK
         // push is going out — not that the customer has paid. Real
-        // confirmation comes from the PayNexus webhook
-        // (api/paynexus-callback.js), which api/payment-status.js reports
+        // confirmation comes from BluePay's signed (HMAC-SHA256) webhook
+        // (api/bluepay-callback.js), which api/payment-status.js reports
         // back to the frontend.
         //
-        // PayNexus generates ITS OWN reference (unlike our pre-generated
-        // one) — link it back to our reference so the webhook, which only
-        // carries PayNexus's reference, can be translated back to ours.
-        linkCheckoutRequestId(data.reference, reference);
+        // BluePay's webhook carries checkout_request_id, not our own
+        // reference — link it back so the webhook handler can translate
+        // it to our reference.
+        linkCheckoutRequestId(body.checkout_request_id, reference);
         setPaymentStatus(reference, {
             status: 'PENDING',
-            paynexusReference: data.reference,
-            checkoutRequestId: data.checkout_request_id
+            stkRequestId: body.stk_request_id,
+            checkoutRequestId: body.checkout_request_id,
+            bluepayAccountReference: body.account_reference // BluePay-assigned, informational only
         });
 
         return res.status(200).json({
             success: true,
             reference,
-            checkout_request_id: data.checkout_request_id
+            checkout_request_id: body.checkout_request_id
         });
 
     } catch (err) {
-        console.error('PayNexus request error:', err.name, err.message, err.cause || '');
+        console.error('BluePay request error:', err.name, err.message, err.cause || '');
         setPaymentStatus(reference, { status: 'FAILED', error: String(err) });
         return res.status(502).json({ success: false, message: 'Could not reach payment provider' });
     }
