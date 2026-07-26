@@ -19,45 +19,25 @@
  *                            display number shown next to it)
  *     BLUEPAY_BASE_URL      (https://bluepay.co.ke)
  *
- * NOTE ON account_reference: earlier versions of this file tried to build
- * one manually with a guessed prefix, which BluePay rejected with
- * "account_reference must start with merchant prefix". The prefix is
- * merchant/channel-specific and set when the channel was created — rather
- * than guessing it, this version simply OMITS account_reference from the
- * request entirely. Per BluePay's docs, when it's omitted they
- * auto-generate one using the channel's correct prefix, and return it in
- * the response (`body.account_reference`) — which we capture below for
- * our own records, purely informational.
- *
- * NOTE: the webhook signature in bluepay-callback.js is verified with a
- * separate BLUEPAY_API_SECRET from the same API Keys page — per BluePay's
- * docs, webhook HMAC always uses the API secret, never the Basic-auth
- * credential, so that env var is still required even though it's unused
- * here. If you later add a call to BluePay's payment_status.php as a
- * polling backup, reuse BLUEPAY_BASIC_AUTH the same way it's used below.
+ * *** TEMPORARY DEBUG BUILD ***
+ * This version logs a safe, partial preview of BLUEPAY_BASIC_AUTH and the
+ * full BLUEPAY_CHANNEL_ID right before the request goes out, so we can
+ * prove — from the actual Vercel function logs, not guesswork — exactly
+ * what value is really stored and being sent as the Authorization header
+ * on the live deployment. Only a short prefix + length of the secret is
+ * logged, never the full value. REMOVE this debug block once resolved.
  */
 
 import { setPaymentStatus, linkCheckoutRequestId } from '../lib/store.js';
 
 function normalizePhoneNumber(phone) {
-    // BluePay's documented format is 254xxxxxxxxx (e.g. 254712345678).
-    // Defensive normalization since we don't control what shape the
-    // frontend sends — handles 0-prefixed, bare 9-digit, or already
-    // correct 254-prefixed input.
     const digits = String(phone).replace(/\D/g, '');
     if (digits.startsWith('254')) return digits;
     if (digits.startsWith('0')) return '254' + digits.slice(1);
     return '254' + digits;
 }
 
-// Vercel's default execution limit (10s on the Hobby plan) can be shorter
-// than BluePay's real-world response time. If the function gets killed
-// before BluePay responds, the browser shows "Service Timeout" even
-// though BluePay already received and is processing the request — which
-// is exactly why an STK push can still arrive on the phone right after
-// the app shows an error. Giving this more headroom lets the function
-// actually wait for the real response instead of getting cut off mid-flight.
-export const maxDuration = 30; // seconds — raise further if still timing out
+export const maxDuration = 30; // seconds
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -80,12 +60,19 @@ export default async function handler(req, res) {
         return res.status(500).json({ success: false, message: 'Payment provider not configured' });
     }
 
+    // ─── TEMPORARY DEBUG — proves what's actually stored, right now ───
+    const authVal = String(process.env.BLUEPAY_BASIC_AUTH);
+    console.log('DEBUG BLUEPAY_BASIC_AUTH — first 20 chars:', JSON.stringify(authVal.slice(0, 20)));
+    console.log('DEBUG BLUEPAY_BASIC_AUTH — length:', authVal.length);
+    console.log('DEBUG BLUEPAY_BASIC_AUTH — starts with "Basic ":', authVal.startsWith('Basic '));
+    console.log('DEBUG BLUEPAY_BASIC_AUTH — starts with "Bearer ":', authVal.startsWith('Bearer '));
+    console.log('DEBUG BLUEPAY_CHANNEL_ID — full value:', process.env.BLUEPAY_CHANNEL_ID);
+    // ─── END TEMPORARY DEBUG ───
+
     const normalizedPhone = normalizePhoneNumber(phone_number);
     const endpoint = `${process.env.BLUEPAY_BASE_URL}/api/stk_push.php`;
 
     try {
-        // TODO: persist the application (applicant, loan_limit) to your
-        // real database here — the store below only tracks payment status.
         setPaymentStatus(reference, {
             status: 'PENDING',
             amount,
@@ -105,18 +92,11 @@ export default async function handler(req, res) {
                 channel_id: process.env.BLUEPAY_CHANNEL_ID,
                 phone: normalizedPhone,
                 amount: Math.round(Number(amount))
-                // account_reference intentionally omitted — see the note
-                // at the top of this file. BluePay auto-generates a
-                // correctly-prefixed one and returns it below.
             })
         });
 
         console.log('BluePay response status:', response.status);
 
-        // Read as text first — if BluePay ever returns a non-JSON error
-        // page (auth failure, 5xx, etc.) response.json() would throw and
-        // get swallowed by the generic catch-block 502 below, hiding the
-        // real cause. Logging the raw body first keeps that visible.
         const raw = await response.text();
         console.log('BluePay response body:', raw);
 
@@ -138,21 +118,12 @@ export default async function handler(req, res) {
             });
         }
 
-        // status here just means the request was accepted and the STK
-        // push is going out — not that the customer has paid. Real
-        // confirmation comes from BluePay's signed (HMAC-SHA256) webhook
-        // (api/bluepay-callback.js), which api/payment-status.js reports
-        // back to the frontend.
-        //
-        // BluePay's webhook carries checkout_request_id, not our own
-        // reference — link it back so the webhook handler can translate
-        // it to our reference.
         linkCheckoutRequestId(body.checkout_request_id, reference);
         setPaymentStatus(reference, {
             status: 'PENDING',
             stkRequestId: body.stk_request_id,
             checkoutRequestId: body.checkout_request_id,
-            bluepayAccountReference: body.account_reference // BluePay-assigned, informational only
+            bluepayAccountReference: body.account_reference
         });
 
         return res.status(200).json({
