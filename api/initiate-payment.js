@@ -4,7 +4,7 @@
  * UpesiPay STK Push
  */
 
-const BASE_URL = 'https://api.upesipay.com';
+const BASE_URL = 'https://upesipay.com';
 
 function normalizePhoneNumber(phone) {
     const digits = String(phone).replace(/\D/g, '');
