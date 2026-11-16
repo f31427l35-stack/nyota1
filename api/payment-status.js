@@ -4,7 +4,7 @@
  * UpesiPay transaction status
  */
 
-const BASE_URL = 'https://api.upesipay.com';
+const BASE_URL = 'https://upesipay.com';
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
